@@ -14558,7 +14558,13 @@ async function createWorkspace(
       }
     }
 
-    await ensureWorkspaceGitRepo(workspaceDir);
+    const workspaceGit = await ensureWorkspaceGitRepo(workspaceDir);
+    if (!workspaceGit.available) {
+      stageLog("workspace_git.skipped", {
+        workspaceId,
+        reason: workspaceGit.skippedReason ?? "git unavailable",
+      });
+    }
 
     let onboardingStatus = "NOT_REQUIRED";
     let onboardingSessionId: string | null = null;
