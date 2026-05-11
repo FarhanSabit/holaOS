@@ -154,7 +154,7 @@ function baseRequest(): TsRunnerRequest {
   return {
     workspace_id: "workspace-1",
     session_id: "session-1",
-    session_kind: "workspace_session",
+    session_kind: "main_session",
     input_id: "input-1",
     instruction: "hello world",
     context: {},
@@ -953,7 +953,7 @@ test("runTsRunnerCli only advertises structured output when the selected harness
   let capturedRequestPayload: Record<string, unknown> | null = null;
   const capabilityManifest = buildAgentCapabilityManifest({
     harnessId: "pi",
-    sessionKind: "workspace_session",
+    sessionKind: "main_session",
     defaultTools: ["read"],
     extraTools: [],
     workspaceSkillIds: [],
@@ -1130,7 +1130,6 @@ test("runTsRunnerCli only advertises structured output when the selected harness
     "build_harness_host_request",
     "compile_runtime_plan",
     "load_current_user_context",
-    "load_legacy_session_history_context",
     "load_operator_surface_context",
     "load_pending_user_memory_context",
     "load_recalled_memory_context",
@@ -2587,7 +2586,7 @@ test("runTsRunnerCli loads pending user memory proposals into prompt context for
   store.ensureSession({
     workspaceId: "workspace-1",
     sessionId: "session-1",
-    kind: "main",
+    kind: "main_session",
     title: "Main",
   });
   store.createMemoryUpdateProposal({
@@ -2677,7 +2676,7 @@ test("runTsRunnerCli loads pending user memory proposals into prompt context for
   );
 });
 
-test("runTsRunnerCli loads legacy session history exports into main-session prompt context", async () => {
+test("runTsRunnerCli does not load legacy session history exports into main-session prompt context", async () => {
   const sandboxRoot = setTempSandboxRoot("hb-ts-runner-legacy-session-history-");
   const workspaceDir = path.join(sandboxRoot, "workspace", "workspace-1");
   const legacyDir = path.join(
@@ -2694,7 +2693,7 @@ test("runTsRunnerCli loads legacy session history exports into main-session prom
         {
           session_id: "session-older",
           title: "Earlier planning chat",
-          kind: "workspace_session",
+          kind: "main_session",
           archived_at: "2026-04-24T06:52:27.419Z",
           message_count: 14,
           output_count: 1,
@@ -2753,28 +2752,13 @@ test("runTsRunnerCli loads legacy session history exports into main-session prom
 
   assert.equal(exitCode, 0);
   assert.ok(capturedProjectRequest);
-  const legacyContext = (
-    capturedProjectRequest as {
-      legacy_session_history_context: Record<string, unknown>;
-    }
-  ).legacy_session_history_context;
   assert.equal(
-    legacyContext.manifest_path,
-    ".holaboss/state/legacy-session-histories/index.json",
+    Object.prototype.hasOwnProperty.call(
+      capturedProjectRequest,
+      "legacy_session_history_context",
+    ),
+    false,
   );
-  assert.equal(legacyContext.legacy_session_count, 1);
-  assert.deepEqual(legacyContext.entries, [
-    {
-      session_id: "session-older",
-      title: "Earlier planning chat",
-      kind: "workspace_session",
-      archived_at: "2026-04-24T06:52:27.419Z",
-      message_count: 14,
-      output_count: 1,
-      json_path: ".holaboss/state/legacy-session-histories/session-older.json",
-      markdown_path: ".holaboss/state/legacy-session-histories/session-older.md",
-    },
-  ]);
 });
 
 test("runTsRunnerCli loads operator surface context into prompt context for the same run", async () => {

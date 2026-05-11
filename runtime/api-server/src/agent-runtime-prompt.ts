@@ -94,21 +94,6 @@ export interface AgentScratchpadContext {
   preview?: string | null;
 }
 
-export interface AgentLegacySessionHistoryContext {
-  manifest_path: string;
-  legacy_session_count: number;
-  entries?: Array<{
-    session_id: string;
-    title?: string | null;
-    kind?: string | null;
-    archived_at?: string | null;
-    message_count?: number | null;
-    output_count?: number | null;
-    json_path?: string | null;
-    markdown_path?: string | null;
-  }> | null;
-}
-
 export interface AgentEvolveCandidateContext {
   candidate_id: string;
   kind: string;
@@ -135,7 +120,6 @@ export interface ComposeBaseAgentPromptRequest {
   operatorSurfaceContext?: AgentOperatorSurfaceContext | null;
   pendingUserMemoryContext?: AgentPendingUserMemoryContext | null;
   recentRuntimeContext?: AgentRecentRuntimeContext | null;
-  legacySessionHistoryContext?: AgentLegacySessionHistoryContext | null;
   scratchpadContext?: AgentScratchpadContext | null;
   evolveCandidateContext?: AgentEvolveCandidateContext | null;
   capabilityManifest?: AgentCapabilityManifest | null;
@@ -160,17 +144,16 @@ function linesSection(lines: string[]): string {
 }
 
 function normalizeSessionKind(value: string | null | undefined): string {
-  return nonEmptyText(value).toLowerCase();
+  const normalized = nonEmptyText(value).toLowerCase();
+  if (!normalized || normalized === "workspace_session" || normalized === "main") {
+    return "main_session";
+  }
+  return normalized;
 }
 
 function isMainSessionKind(value: string | null | undefined): boolean {
   const normalized = normalizeSessionKind(value);
-  return (
-    normalized === "" ||
-    normalized === "workspace_session" ||
-    normalized === "main" ||
-    normalized === "onboarding"
-  );
+  return normalized === "main_session" || normalized === "onboarding";
 }
 
 function addAvailableToolName(available: Set<string>, value: string | null | undefined): void {
@@ -212,20 +195,7 @@ function sessionPolicyPromptSection(request: ComposeBaseAgentPromptRequest): str
   const normalizedMode = nonEmptyText(request.sessionMode).toLowerCase();
   const normalizedKind = normalizeSessionKind(request.sessionKind);
 
-  if (normalizedMode === "code") {
-    lines.push(
-      "Session mode is `code`. Default to implementation-oriented work, direct inspection, concrete edits, and explicit verification when the user asks you to do work."
-    );
-  } else if (normalizedMode) {
-    lines.push(`Session mode is \`${normalizedMode}\`. Adapt your level of action and verification to that mode.`);
-  }
-
   switch (normalizedKind) {
-    case "main":
-      lines.push(
-        "This is a legacy main workspace session. Treat it like a broad workspace session for scope, but do not assume browser tooling is available unless the capability manifest exposes it."
-      );
-      break;
     case "onboarding":
       lines.push(
         "This is an onboarding session. Prioritize onboarding progress, use onboarding-specific runtime tools when available, keep the conversation anchored to setup and confirmation work, and do not assume browser tooling is available."
@@ -248,9 +218,9 @@ function sessionPolicyPromptSection(request: ComposeBaseAgentPromptRequest): str
         "For browser tasks, if you reach a login or access wall, leave the browser where it is, ask the user to complete the required step, and wait for the main session to resume you."
       );
       break;
-    case "workspace_session":
+    case "main_session":
       lines.push(
-        "This is a front-of-house workspace session. Stay conversational, handle clarification and user-visible updates, prefer delegating long-running or execution-heavy work to subagents, and do not assume browser tooling is available unless the capability manifest exposes it."
+        "This is a front-of-house workspace session. Stay conversational, handle clarification and user-visible updates, delegate task execution to subagents, and do not assume browser tooling is available unless the capability manifest exposes it."
       );
       break;
     default:
@@ -285,8 +255,8 @@ function mainSessionResponseDeliveryPolicyPromptSection(): string {
     "Be concise and on-point. Do not ramble, over-explain, or pad replies just to sound helpful.",
     "Keep the user interacting with one front-of-house counterpart; do not frame normal updates like system notifications.",
     "Acknowledge what matters in the user's message before diving into execution or results.",
-    "Lead with the answer, reaction, or next useful step instead of process narration whenever that stays clear.",
-    "Prefer short paragraphs and plain language; use headings or numbered lists only when structure genuinely helps.",
+    "Lead with the answer, reaction, instead of process narration whenever that stays clear.",
+    "Prefer short sentences and plain language; use headings or numbered lists only when structure genuinely helps.",
     "Use contractions and natural transitions when they fit.",
     "Avoid repetitive canned phrasing or stiff assistant boilerplate; vary your wording and keep the voice alive.",
     "When background work finishes or reaches a useful milestone, weave relevant updates into the next reply when it fits naturally.",
@@ -297,16 +267,15 @@ function mainSessionResponseDeliveryPolicyPromptSection(): string {
     "For kickoff and delegation replies, acknowledge the request and state the next action without turning the reply into a mini-analysis, rewrite theory, or speculative plan.",
     "Do not speculate before inspection. If you have not yet inspected the relevant artifact or received grounded tool or subagent results, do not present hypotheses, likely root causes, or detailed solution structure as established.",
     "Only surface specific claims that are grounded in the user's message, your direct inspection, tool results, subagent results, or immediate procedural facts about the current run.",
-    "Longer prose is allowed when the user explicitly asks for analysis, diagnosis, comparison, strategy, or recommendation in chat, or when you are synthesizing evidence you already gathered.",
+    "Longer prose is allowed when you are synthesizing evidence you already gathered.",
     "If the user asked for execution rather than analysis, keep the visible reply brief even when the hidden task brief needs more detail.",
-    "Do not expand a narrow request into a broader theory unless the user explicitly asked for that reasoning or you already verified it.",
+    "Do not expand a narrow request into a broader theory unless you already verified it.",
     "Do not use visible chat to preload hidden assumptions into delegated work.",
     "When routing work through `holaboss_delegate_task`, call the tool first and then write at most one user-facing update based on the returned task state.",
     "Reserve completion language such as `done`, `finished`, `created`, `sent`, `navigated`, `verified`, or `it's there now` for work that is already terminal in the current turn or for a later background completion update, and only when the current turn has direct grounded evidence such as a tool result, direct inspection, or a persisted deliverable/output.",
     "If content only exists in chat, in a plan, or in queued or delegated work, describe it as drafted, outlined, queued, or in progress; do not say it was created, saved, attached, sent, verified, or is already there.",
     "If delegated work immediately comes back waiting on user input, say it is blocked on that step and ask only for what is needed to continue.",
     "If delegated work finishes early enough to merge into the same reply, state the completion once instead of also describing it as newly started or queued.",
-    "Do not create a report just because tools were used.",
     "If the user asks for a report, brief, memo, digest, recap, write-up, or other deliverable that would be longer than a short chat reply, prefer producing it as an artifact through delegated background work and keep the chat reply to a short handoff.",
     "Do not paste long document, HTML, markdown, or report bodies into chat. If work produced a deliverable artifact, mention it briefly and rely on the attached file or report instead.",
   ]);
@@ -323,7 +292,7 @@ function mainSessionSoulPromptSection(): string {
     "Show brief warmth, curiosity, humor, and point of view when the moment calls for it, but do not become chatty, theatrical, or sentimental.",
     "Prefer replies that read like a capable person texting the user back, not a ticket update, operator console, or workflow log.",
     "React naturally before explaining when that is what a human teammate would do: a quick 'Nice', 'Yeah, that is messy', or 'I would not do it that way' is allowed when it fits.",
-    "Have opinions. Pick a sensible path by default instead of listing options, and explain the tradeoff only when it matters.",
+    "Have opinions, don't just blindly follow user's point of view. Pick a sensible path by default instead of listing options, and explain the tradeoff only when it matters.",
     "Do not narrate or analyze your own persona. Just speak as Hola.",
     "Do not fake empathy or perform customer-support warmth. Be present, direct, and human in the way you respond.",
     "Be concise and on-point. Do not ramble, over-explain, or pad replies just to sound helpful.",
@@ -457,62 +426,6 @@ function recentRuntimeContextPromptSection(
     "Run-specific routing recovery:",
     ...lines,
   ]);
-}
-
-function legacySessionHistoryContextPromptSection(
-  context: AgentLegacySessionHistoryContext | null | undefined,
-): string {
-  if (!context) {
-    return "";
-  }
-  const manifestPath = nonEmptyText(context.manifest_path);
-  const legacySessionCount = Number.isFinite(context.legacy_session_count)
-    ? Math.max(0, Math.trunc(context.legacy_session_count))
-    : 0;
-  if (!manifestPath || legacySessionCount <= 0) {
-    return "";
-  }
-  const entries = Array.isArray(context.entries) ? context.entries : [];
-  const lines = [
-    "Legacy session history exports:",
-    "Older front-of-house workspace sessions may have been migrated out of the live transcript and exported to `.holaboss/state/legacy-session-histories`.",
-    "These exports are not automatically merged into the current conversation state.",
-    "When the user asks about prior workspace conversations, past sessions, or historical context, consult the manifest or a directly relevant export before saying that prior session context is unavailable.",
-    "Use `list`, `glob`, and `read` to inspect these legacy exports when needed.",
-    `Manifest path: \`${manifestPath}\`.`,
-    `Legacy exported session count: ${legacySessionCount}.`,
-  ];
-  if (entries.length > 0) {
-    lines.push("Recent exported sessions:");
-    for (const entry of entries) {
-      const sessionId = nonEmptyText(entry.session_id);
-      if (!sessionId) {
-        continue;
-      }
-      const title = nonEmptyText(entry.title) || "Untitled session";
-      const kind = nonEmptyText(entry.kind) || "unknown";
-      const archivedAt = nonEmptyText(entry.archived_at);
-      const messageCount = Number.isFinite(entry.message_count)
-        ? Math.max(0, Math.trunc(entry.message_count ?? 0))
-        : null;
-      const outputCount = Number.isFinite(entry.output_count)
-        ? Math.max(0, Math.trunc(entry.output_count ?? 0))
-        : null;
-      const jsonPath = nonEmptyText(entry.json_path);
-      const markdownPath = nonEmptyText(entry.markdown_path);
-      const details = [
-        `session_id=\`${sessionId}\``,
-        `kind=\`${kind}\``,
-        archivedAt ? `archived=${archivedAt}` : "",
-        messageCount !== null ? `messages=${messageCount}` : "",
-        outputCount !== null ? `outputs=${outputCount}` : "",
-        jsonPath ? `json=\`${jsonPath}\`` : "",
-        markdownPath ? `markdown=\`${markdownPath}\`` : "",
-      ].filter(Boolean).join(", ");
-      lines.push(`- ${title}: ${details}`);
-    }
-  }
-  return linesSection(lines);
 }
 
 function scratchpadContextPromptSection(
@@ -801,16 +714,6 @@ function pushSharedRuntimeContextPromptSections(
     content: pendingUserMemoryContextPromptSection(request.pendingUserMemoryContext)
   });
 
-  pushPromptLayer(promptSections, {
-    id: "legacy_session_history",
-    channel: "context_message",
-    apply_at: "runtime_config",
-    precedence: "runtime_context",
-    priority: 491,
-    volatility: "workspace",
-    content: legacySessionHistoryContextPromptSection(request.legacySessionHistoryContext)
-  });
-
   if (options.includeScratchpadContext) {
     pushPromptLayer(promptSections, {
       id: "scratchpad_context",
@@ -995,12 +898,11 @@ export function buildMainSessionPromptSections(
   const normalizedSessionKind = normalizeSessionKind(request.sessionKind);
   const conversationLines = [
     "Conversation and orchestration doctrine:",
-    "Handle quick questions, clarification, and read/query requests inline when appropriate.",
     "Keep this session to coordination, inspection, and user-facing conversation; route direct file edits, terminal execution, browser execution, and other state-changing implementation work to subagents.",
-    "Inspect before mutating workspace, app, or runtime state when possible.",
-    "After edits or other state-changing tool calls, verify the result with the most direct inspection path available.",
-    "Use available tools, skills, and MCP integrations when they are more reliable than reasoning alone.",
-    "Treat explicit user requirements and verification targets as completion criteria, not optional detail.",
+    "Use this session to understand the request, choose the right route, brief delegated work clearly, and translate results back to the user.",
+    "Use surfaced capabilities to inspect, ground routing decisions, or verify claims when they are more reliable than reasoning alone.",
+    "Treat explicit user requirements, verification targets, and deliverable shape as completion criteria for delegated work, not optional detail.",
+    "Do not report work as done, verified, or already satisfied unless direct inspection or grounded child results confirm it.",
     "Treat the active workspace root as the default boundary. Do not cross it unless the user explicitly asks, and then keep the scope minimal.",
     "Use coordination tools instead of hidden state. The newest user message is primary.",
     "Resume unfinished work only when the newest message clearly asks to continue it; otherwise respond to the new message directly.",
@@ -1022,8 +924,9 @@ export function buildMainSessionPromptSections(
     conversationLines.splice(4, 0,
       "The main session is a front-of-house coordinator with only a partial direct capability surface, not the default heavy executor.",
       "Treat the surfaced tool and capability set for this run as your full direct authority. Hidden subagents may have a broader executor surface than you do.",
-      "Prefer delegating long-running, tool-heavy, interruptible, or execution-heavy work to hidden subagents.",
-      "For browser control, web research, terminal work, or other execution-heavy tasks, default to delegating unless the direct capability is surfaced here and the work is genuinely small enough to finish inline.",
+      "Delegate task execution to hidden subagents. Use this session for coordination, direct inspection, and claim verification, not for carrying out the task work itself.",
+      "When the user asks for fresh execution, fresh investigation, or a new deliverable, do not answer from prior chat memory alone; delegate or inspect first.",
+      "For browser control, web research, terminal work, or other execution work, delegate to hidden subagents.",
       "Default delegated browser work to the agent browser. Set `use_user_browser_surface: true` on `holaboss_delegate_task` only when the user explicitly says `use my browser`. Do not infer it from `current tab`, `current page`, `this page`, or similar phrasing.",
       "If the user asks for work that needs capabilities this run does not have directly, but delegated subagents can do it, delegate instead of replying that this run lacks those tools.",
       "Treat missing web, browser, terminal, or other execution-heavy capabilities on the main session as a routing signal to delegate, not as the final answer to the user.",
@@ -1035,6 +938,9 @@ export function buildMainSessionPromptSections(
       "Treat prior tool failures, subagent failures, and access or integration blockers as observations about earlier attempts, not static truth about the current run.",
       "When the user asks to retry, continue, or try again after mutable external state may have changed, prefer a fresh attempt over paraphrasing the previous failure from chat history.",
       "Only restate an earlier access, authorization, or integration blocker after a current attempt or current tool result confirms it still applies.",
+      "If a request resembles earlier work but the user did not clearly ask to continue or reuse that earlier result, treat it as a fresh task.",
+      "Do not satisfy a fresh task by resurfacing a previous artifact, previous child output, or remembered result unless the user explicitly asked to reuse, continue, transform, summarize, compare, or save that exact prior result.",
+      "Before claiming the work is already done or that an existing artifact satisfies the current request, verify it through direct inspection or a grounded child result.",
       "After delegating fresh background work, do not poll the child repeatedly in the same turn with status-read tools just to see if it finished; return control unless the delegated task is already terminal or immediately waiting on user input.",
       "When the user asks to continue, transform, save, summarize, compare, or report on a previous child result, continue the relevant child session instead of spawning a brand-new child task.",
       "If multiple child sessions could match a continuation request, ask which one the user means before continuing.",

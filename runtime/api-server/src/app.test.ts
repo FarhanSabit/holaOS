@@ -913,7 +913,7 @@ test("runtime subagent capability routes create and cancel hidden background tas
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
     title: "Workspace 1",
   });
   store.upsertBinding({
@@ -1143,7 +1143,7 @@ test("delegated subagents use the configured global subagent model instead of re
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
   });
   const app = buildTestRuntimeApiServer({ store });
 
@@ -2969,7 +2969,7 @@ test("ensure-main-session binds one desktop main session and exports legacy fron
   const older = store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-older",
-    kind: "workspace_session",
+    kind: "main_session",
     title: "Older conversation",
     createdBy: "workspace_user",
   });
@@ -2984,7 +2984,7 @@ test("ensure-main-session binds one desktop main session and exports legacy fron
   const newer = store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-newer",
-    kind: "workspace_session",
+    kind: "main_session",
     title: "Main conversation",
     createdBy: "workspace_user",
   });
@@ -3006,8 +3006,8 @@ test("ensure-main-session binds one desktop main session and exports legacy fron
   const binding = store.getConversationBindingByConversation({
     workspaceId: workspace.id,
     channel: "desktop",
-    conversationKey: "workspace-main",
-    role: "main",
+    conversationKey: "main_session",
+    role: "main_session",
   });
   assert.ok(binding);
   assert.equal(binding?.sessionId, newer.sessionId);
@@ -4047,12 +4047,12 @@ test("history endpoint returns stored messages even after runtime harness owners
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-old",
-    kind: "workspace_session"
+    kind: "main_session"
   });
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-new",
-    kind: "workspace_session"
+    kind: "main_session"
   });
   store.insertSessionMessage({
     workspaceId: workspace.id,
@@ -4366,7 +4366,7 @@ test("cronjobs, task proposals, and session state routes preserve local payload 
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
     title: "Workspace 1",
   });
   store.upsertBinding({
@@ -4529,7 +4529,7 @@ test("cronjobs, task proposals, and session state routes preserve local payload 
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "main",
+    kind: "main_session",
     title: "Main"
   });
   store.createMemoryUpdateProposal({
@@ -6632,7 +6632,7 @@ test("queue route persists input and runtime state without writing session histo
 
   const session = store.getSession({ workspaceId: workspace.id, sessionId });
   assert.ok(session);
-  assert.equal(session.kind, "workspace_session");
+  assert.equal(session.kind, "main_session");
   assert.equal(session.title, "hello world");
 
   const binding = store.getBinding({ workspaceId: workspace.id, sessionId });
@@ -6701,7 +6701,7 @@ test("queue route preserves the active claimed input while adding later queued w
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
   });
   store.upsertBinding({
     workspaceId: workspace.id,
@@ -6797,7 +6797,7 @@ test("queue route folds pending background updates into the next main-session in
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
   });
   store.upsertBinding({
     workspaceId: workspace.id,
@@ -6887,7 +6887,7 @@ test("queue route preserves an existing explicit session title", async () => {
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "workspace_session",
+    kind: "main_session",
     title: "Pinned title",
   });
 
@@ -7364,7 +7364,7 @@ test("accepting and dismissing evolve task proposals updates linked skill candid
   store.ensureSession({
     workspaceId: workspace.id,
     sessionId: "session-main",
-    kind: "main",
+    kind: "main_session",
     title: "Main"
   });
   store.upsertBinding({
