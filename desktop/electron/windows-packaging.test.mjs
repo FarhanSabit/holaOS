@@ -37,8 +37,11 @@ test("windows packaging config and CI workflow support optional signing and NSIS
     readFile(CI_WORKFLOW_PATH, "utf8"),
   ]);
 
-  assert.match(builderConfigSource, /const windowsSigningConfigured = Boolean\(/);
-  assert.match(builderConfigSource, /process\.env\.WIN_CSC_LINK \|\| process\.env\.CSC_LINK/);
+  assert.match(builderConfigSource, /const windowsCertificateSigningConfigured = Boolean\(/);
+  assert.match(builderConfigSource, /readEnv\("WIN_CSC_LINK"\) \|\| readEnv\("CSC_LINK"\)/);
+  assert.match(builderConfigSource, /const windowsAzureSigningEnv = \{/);
+  assert.match(builderConfigSource, /WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME/);
+  assert.match(builderConfigSource, /azureSignOptions: windowsAzureSigningConfig/);
   assert.match(builderConfigSource, /signAndEditExecutable: windowsSigningConfigured,/);
 
   assert.match(runElectronBuilderSource, /const electronBuilderCli = path\.join\(/);
@@ -53,7 +56,15 @@ test("windows packaging config and CI workflow support optional signing and NSIS
   assert.match(workflowSource, /release_tag must match holaOS-YYYY\.MDD\.R/);
   assert.match(workflowSource, /DESKTOP_RELEASE_ASSET_NAME: holaOS-windows-x64-setup\.exe/);
   assert.match(workflowSource, /- name: Prepare desktop \(build SDK \+ install desktop deps\)\n\s+env:\n\s+ELECTRON_SKIP_BINARY_DOWNLOAD: "1"\n\s+run: npm run desktop:prepare/);
-  assert.match(workflowSource, /CSC_LINK: \$\{\{ env\.WINDOWS_CERTIFICATE \}\}/);
+  assert.match(workflowSource, /WINDOWS_SIGNING_ENDPOINT: \$\{\{ vars\.WINDOWS_SIGNING_ENDPOINT \}\}/);
+  assert.match(workflowSource, /WINDOWS_SIGNING_ACCOUNT_NAME: \$\{\{ vars\.WINDOWS_SIGNING_ACCOUNT_NAME \}\}/);
+  assert.match(workflowSource, /WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME: \$\{\{ vars\.WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME \}\}/);
+  assert.match(workflowSource, /WINDOWS_SIGNING_PUBLISHER_NAME: \$\{\{ vars\.WINDOWS_SIGNING_PUBLISHER_NAME \}\}/);
+  assert.match(workflowSource, /AZURE_TENANT_ID: \$\{\{ secrets\.AZURE_TENANT_ID \}\}/);
+  assert.match(workflowSource, /AZURE_CLIENT_ID: \$\{\{ secrets\.AZURE_CLIENT_ID \}\}/);
+  assert.match(workflowSource, /AZURE_CLIENT_SECRET: \$\{\{ secrets\.AZURE_CLIENT_SECRET \}\}/);
+  assert.match(workflowSource, /Get-AuthenticodeSignature -FilePath \$stablePath/);
+  assert.doesNotMatch(workflowSource, /WINDOWS_CERTIFICATE:/);
   assert.match(workflowSource, /npm run dist:win:local/);
   assert.match(workflowSource, /generated_installer_path=/);
   assert.match(workflowSource, /\$manifestName = if \(\$primaryChannel -eq "beta"\) \{ "beta\.yml" \} else \{ "latest\.yml" \}/);

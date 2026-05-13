@@ -582,8 +582,6 @@ jobs:
       HOLABOSS_RELEASE_CHANNEL: ${{ needs.ensure-release.outputs.release_channel }}
       DESKTOP_ASSET_PREFIX: holaboss-desktop-windows
       DESKTOP_RELEASE_ASSET_NAME: holaOS-windows-x64-setup.exe
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -619,19 +617,38 @@ jobs:
           HOLABOSS_MARKETPLACE_URL: ${{ vars.HOLABOSS_MARKETPLACE_URL }}
           HOLABOSS_PROACTIVE_URL: ${{ vars.HOLABOSS_PROACTIVE_URL }}
           GITHUB_TOKEN: ${{ github.token }}
-          CSC_LINK: ${{ env.WINDOWS_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ env.WINDOWS_CERTIFICATE_PASSWORD }}
-          WIN_CSC_LINK: ${{ env.WINDOWS_CERTIFICATE }}
-          WIN_CSC_KEY_PASSWORD: ${{ env.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_SIGNING_ENDPOINT: ${{ vars.WINDOWS_SIGNING_ENDPOINT }}
+          WINDOWS_SIGNING_ACCOUNT_NAME: ${{ vars.WINDOWS_SIGNING_ACCOUNT_NAME }}
+          WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ vars.WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          WINDOWS_SIGNING_PUBLISHER_NAME: ${{ vars.WINDOWS_SIGNING_PUBLISHER_NAME }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_ENVIRONMENT: production
           HOLABOSS_RUNTIME_VERSION: ${{ env.RELEASE_TAG }}
         run: |
-          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
-            throw "Windows desktop release requires WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD so the public installer is code-signed."
+          $requiredSigningEnv = @(
+            "WINDOWS_SIGNING_ENDPOINT",
+            "WINDOWS_SIGNING_ACCOUNT_NAME",
+            "WINDOWS_SIGNING_CERTIFICATE_PROFILE_NAME",
+            "WINDOWS_SIGNING_PUBLISHER_NAME",
+            "AZURE_TENANT_ID",
+            "AZURE_CLIENT_ID",
+            "AZURE_CLIENT_SECRET"
+          )
+          $missingSigningEnv = @(
+            foreach ($name in $requiredSigningEnv) {
+              if (-not [Environment]::GetEnvironmentVariable($name)) {
+                $name
+              }
+            }
+          )
+          if ($missingSigningEnv.Count -gt 0) {
+            throw "Windows desktop release requires Azure Trusted Signing configuration. Missing: $($missingSigningEnv -join ', ')"
           }
 
-          Write-Host "Building signed Windows installer."
+          Write-Host "Building Azure Trusted Signing Windows installer."
 
           npm run dist:win:local
 
@@ -655,6 +672,13 @@ jobs:
           $installerPath = $installer.FullName
           $stablePath = Join-Path $PWD "out/release/$env:DESKTOP_RELEASE_ASSET_NAME"
           Copy-Item -LiteralPath $installerPath -Destination $stablePath -Force
+
+          $signature = Get-AuthenticodeSignature -FilePath $stablePath
+          if ($signature.Status -ne "Valid") {
+            $signature | Format-List *
+            throw "Windows installer signature is not valid: $($signature.Status)"
+          }
+
           Add-Content -Path $env:GITHUB_OUTPUT -Value "generated_installer_path=$installerPath"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "installer_path=$stablePath"
 
