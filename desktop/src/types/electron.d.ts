@@ -1199,6 +1199,7 @@ interface RuntimeNotificationListOptionsPayload {
 
   interface HolabossCreateWorkspacePayload {
     holaboss_user_id: string;
+    location?: WorkspaceLocationPayload | null;
     harness?: string | null;
     name: string;
     template_mode?: "template" | "empty" | "empty_onboarding" | null;

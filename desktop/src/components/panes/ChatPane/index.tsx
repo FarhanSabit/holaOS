@@ -2715,6 +2715,7 @@ export function ChatPane({
     isActivatingWorkspace,
     workspaceAppsReady,
     workspaceBlockingReason,
+    workspaceErrorMessage,
     refreshWorkspaceData,
     installedApps,
   } = useWorkspaceDesktop();
@@ -5582,7 +5583,9 @@ export function ChatPane({
     }
     if (!isOnboardingVariant && !workspaceAppsReady) {
       setChatErrorMessage(
-        workspaceBlockingReason || "Workspace apps are still starting.",
+        workspaceBlockingReason ||
+          workspaceErrorMessage ||
+          "Workspace apps are still starting.",
       );
       return;
     }
@@ -6833,6 +6836,7 @@ export function ChatPane({
     !selectedWorkspace || isOnboardingVariant || workspaceAppsReady
       ? ""
       : workspaceBlockingReason ||
+        workspaceErrorMessage ||
         (isActivatingWorkspace
           ? "Preparing workspace apps..."
           : "Workspace apps are still starting.");
@@ -7097,6 +7101,7 @@ export function ChatPane({
       signed_in: isSignedIn,
       workspace_ready: Boolean(selectedWorkspace) && workspaceAppsReady,
       workspace_blocking_reason: workspaceBlockingReason || null,
+      workspace_error_message: workspaceErrorMessage || null,
       runtime_default_model: runtimeConfig?.defaultModel ?? null,
       session_metrics: {
         available_session_count: desktopMainSession ? 1 : 0,
@@ -7193,6 +7198,7 @@ export function ChatPane({
       usesHostedManagedCredits,
       workspaceAppsReady,
       workspaceBlockingReason,
+      workspaceErrorMessage,
     ],
   );
   useRendererSentrySection("chat_pane", chatPaneSentryState);

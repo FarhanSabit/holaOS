@@ -65,6 +65,7 @@ const LOCAL_OSS_TEMPLATE_USER_ID = "local-oss";
 const DEFAULT_WORKSPACE_HARNESS: WorkspaceHarnessId = "pi";
 const BOOTSTRAP_IPC_TIMEOUT_MS = 8_000;
 type TemplateSourceMode = "local" | "marketplace" | "empty" | "empty_onboarding";
+export type FirstWorkspaceStep = "welcome" | "name" | "folder";
 type LifecycleStepState = "pending" | "current" | "done" | "error";
 type WorkspaceListLoadSource = "auto" | "live" | "cached";
 type WorkspaceBrowserBootstrapMode = "fresh" | "copy_workspace" | "import_browser";
@@ -191,6 +192,8 @@ interface WorkspaceDesktopContextValue {
   isResolvingIntegrations: boolean;
   resolveIntegrationsBeforeCreate: () => Promise<ResolveTemplateIntegrationsResult | null>;
   clearPendingIntegrations: () => void;
+  firstWorkspaceStep: FirstWorkspaceStep;
+  setFirstWorkspaceStep: (step: FirstWorkspaceStep) => void;
 }
 
 const WorkspaceDesktopContext = createContext<WorkspaceDesktopContextValue | null>(null);
@@ -328,6 +331,7 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
   const [isResolvingIntegrations, setIsResolvingIntegrations] = useState(false);
   const [pendingAppInstall, setPendingAppInstall] = useState<{ appId: string; provider: string } | null>(null);
   const [isConnectingAppIntegration, setIsConnectingAppIntegration] = useState(false);
+  const [firstWorkspaceStep, setFirstWorkspaceStep] = useState<FirstWorkspaceStep>("welcome");
   // Composio toolkit metadata (name + logo + categories) keyed by toolkit
   // slug. Single source of truth for app display name + icon across the
   // shell — both the marketplace gallery and the workspace sidebar look
@@ -427,6 +431,8 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
     ? (selectedWorkspace?.onboarding_session_id || "").trim()
     : "";
   const runtimeReadyForWorkspaceData = runtimeStatus?.status === "running";
+  const canLoadLiveWorkspaceList = runtimeReadyForWorkspaceData || isSignedIn;
+  const selectedWorkspaceNeedsLocalRuntime = selectedWorkspace?.location !== "cloud";
   const workspaceLifecycleMatchesSelection = Boolean(selectedWorkspaceId) && workspaceLifecycleWorkspaceId === selectedWorkspaceId;
   const workspaceAppsReady = workspaceLifecycleMatchesSelection && workspaceAppsReadyState;
   const workspaceBlockingReason = workspaceLifecycleMatchesSelection ? workspaceBlockingReasonState : "";
@@ -680,7 +686,7 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
     const { preserveSelection = true, allowEmpty = false, source = "auto" } = options;
     const workspaceListSource =
       source === "auto"
-        ? runtimeReadyForWorkspaceData
+        ? canLoadLiveWorkspaceList
           ? "live"
           : "cached"
         : source;
@@ -719,7 +725,7 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
       setRuntimeConfig(nextRuntimeConfig);
       setRuntimeStatus(nextRuntimeStatus);
       const workspaceListSource =
-        nextRuntimeStatus.status === "running" ? "live" : "cached";
+        nextRuntimeStatus.status === "running" || isSignedIn ? "live" : "cached";
       const result = await loadWorkspaceData({
         preserveSelection: true,
         allowEmpty: workspaceListSource === "live",
@@ -1316,13 +1322,13 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     let cancelled = false;
 
-    // Workspace summaries can now hydrate from either the live runtime
-    // (`listWorkspaces`) or the cached control-plane-like local registry
-    // (`listWorkspacesCached`). That lets the desktop render the workspace
-    // list before the runtime is fully ready, while still reconciling
-    // against the live runtime once it reaches `running`.
+    // Workspace summaries can now hydrate from either the live desktop
+    // control plane (`listWorkspaces`) or the cached local registry
+    // (`listWorkspacesCached`). That lets the desktop render signed-in
+    // cloud workspaces without waiting for the embedded runtime, while
+    // still reconciling local state once the sidecar reaches `running`.
     const workspaceListSource =
-      runtimeReadyForWorkspaceData ? "live" : "cached";
+      canLoadLiveWorkspaceList ? "live" : "cached";
 
     async function refresh() {
       setIsRefreshing(true);
@@ -1359,7 +1365,7 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
     return () => {
       cancelled = true;
     };
-  }, [resolvedUserId, runtimeReadyForWorkspaceData, runtimeStatus?.lastError, runtimeStatus?.status, workspaces.length]);
+  }, [canLoadLiveWorkspaceList, resolvedUserId, runtimeStatus?.lastError, runtimeStatus?.status, workspaces.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1392,7 +1398,11 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
   }, [session]);
 
   useEffect(() => {
-    if (!selectedWorkspaceId || !selectedWorkspaceExists || !runtimeReadyForWorkspaceData) {
+    if (
+      !selectedWorkspaceId ||
+      !selectedWorkspaceExists ||
+      (selectedWorkspaceNeedsLocalRuntime && !runtimeReadyForWorkspaceData)
+    ) {
       setInstalledApps([]);
       setIsLoadingInstalledApps(false);
       setIsActivatingWorkspace(false);
@@ -1432,10 +1442,14 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
     return () => {
       cancelled = true;
     };
-  }, [runtimeReadyForWorkspaceData, selectedWorkspaceExists, selectedWorkspaceId]);
+  }, [runtimeReadyForWorkspaceData, selectedWorkspaceExists, selectedWorkspaceId, selectedWorkspaceNeedsLocalRuntime]);
 
   useEffect(() => {
-    if (!selectedWorkspaceId || !selectedWorkspaceExists || !runtimeReadyForWorkspaceData) {
+    if (
+      !selectedWorkspaceId ||
+      !selectedWorkspaceExists ||
+      (selectedWorkspaceNeedsLocalRuntime && !runtimeReadyForWorkspaceData)
+    ) {
       return;
     }
 
@@ -1455,7 +1469,7 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [runtimeReadyForWorkspaceData, selectedWorkspaceExists, selectedWorkspaceId]);
+  }, [runtimeReadyForWorkspaceData, selectedWorkspaceExists, selectedWorkspaceId, selectedWorkspaceNeedsLocalRuntime]);
 
   useEffect(() => {
     if (!selectedWorkspaceId || !onboardingModeActive) {
@@ -1697,7 +1711,9 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
       pendingIntegrations,
       isResolvingIntegrations,
       resolveIntegrationsBeforeCreate,
-      clearPendingIntegrations
+      clearPendingIntegrations,
+      firstWorkspaceStep,
+      setFirstWorkspaceStep
     }),
     [
       runtimeConfig,
@@ -1767,7 +1783,8 @@ export function WorkspaceDesktopProvider({ children }: { children: ReactNode }) 
       pendingIntegrations,
       isResolvingIntegrations,
       resolveIntegrationsBeforeCreate,
-      clearPendingIntegrations
+      clearPendingIntegrations,
+      firstWorkspaceStep
     ]
   );
 
