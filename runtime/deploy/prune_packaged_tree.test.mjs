@@ -35,6 +35,8 @@ test("prunePackagedTree removes packaged-runtime archives, sources, and duplicat
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "hb-prune-node-runtime-"));
   const nodePackageDir = path.join(root, "node_modules", "node");
   const nodeBinDir = path.join(nodePackageDir, "bin");
+  const nodePackageShimDir = path.join(nodePackageDir, "node_modules", ".bin");
+  const nodePackageShimPath = path.join(nodePackageShimDir, "node");
   const duplicateNodeDir = path.join(nodePackageDir, "node_modules", "node-bin-win-x64", "bin");
   const setupDir = path.join(nodePackageDir, "node_modules", "node-bin-setup");
   const archivePath = path.join(root, "node_modules", "mcporter", "mcporter-0.7.3.tgz");
@@ -43,6 +45,7 @@ test("prunePackagedTree removes packaged-runtime archives, sources, and duplicat
 
   try {
     fs.mkdirSync(nodeBinDir, { recursive: true });
+    fs.mkdirSync(nodePackageShimDir, { recursive: true });
     fs.mkdirSync(duplicateNodeDir, { recursive: true });
     fs.mkdirSync(setupDir, { recursive: true });
     fs.mkdirSync(path.dirname(archivePath), { recursive: true });
@@ -50,6 +53,11 @@ test("prunePackagedTree removes packaged-runtime archives, sources, and duplicat
     fs.mkdirSync(path.dirname(binaryPath), { recursive: true });
     fs.writeFileSync(path.join(nodeBinDir, "node.exe"), "node", "utf8");
     fs.writeFileSync(path.join(duplicateNodeDir, "node.exe"), "duplicate", "utf8");
+    try {
+      fs.symlinkSync("../node-bin-win-x64/bin/node.exe", nodePackageShimPath);
+    } catch {
+      fs.writeFileSync(nodePackageShimPath, "node shim", "utf8");
+    }
     fs.writeFileSync(path.join(setupDir, "index.js"), "setup", "utf8");
     fs.writeFileSync(archivePath, "archive", "utf8");
     fs.writeFileSync(sourcePath, "source", "utf8");
@@ -58,6 +66,7 @@ test("prunePackagedTree removes packaged-runtime archives, sources, and duplicat
     prunePackagedTree(root, "windows");
 
     assert.equal(fs.existsSync(path.join(nodeBinDir, "node.exe")), true);
+    assert.equal(fs.existsSync(nodePackageShimDir), false);
     assert.equal(fs.existsSync(path.join(nodePackageDir, "node_modules", "node-bin-win-x64")), false);
     assert.equal(fs.existsSync(setupDir), false);
     assert.equal(fs.existsSync(archivePath), false);
