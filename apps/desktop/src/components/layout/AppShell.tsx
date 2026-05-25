@@ -5557,11 +5557,10 @@ function AppShellContent() {
                           ).map(({ value, label, icon: Icon }) => {
                             const isActive = spaceExplorerMode === value;
                             return (
-                              <Tooltip>
+                              <Tooltip key={value}>
                                 <TooltipTrigger
                                   render={
                                     <Button
-                                      key={value}
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => {
