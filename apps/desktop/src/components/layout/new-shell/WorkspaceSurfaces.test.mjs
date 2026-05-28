@@ -172,6 +172,10 @@ test("workspace surfaces wire board and dashboard tabs through the shell", async
   assert.match(issueDetailPaneSource, /WorkspaceSurfaceHeader/);
 
   assert.match(teammatesPaneSource, /export function TeammatesPane/);
+  assert.match(
+    teammatesPaneSource,
+    /const TEAMMATE_TABLE_GRID_COLUMNS =\s*"grid-cols-\[minmax\(240px,2\.4fr\)_132px_132px_104px_96px\]";/,
+  );
   assert.match(teammatesPaneSource, /window\.electronAPI\.workspace\.listTeammates/);
   assert.match(teammatesPaneSource, /window\.electronAPI\.workspace\.listIssues/);
   assert.match(teammatesPaneSource, /window\.electronAPI\.workspace\.createTeammate/);
@@ -188,6 +192,11 @@ test("workspace surfaces wire board and dashboard tabs through the shell", async
   assert.doesNotMatch(teammatesPaneSource, /Creating a new teammate/);
   assert.match(teammatesPaneSource, /ConfirmDialog/);
   assert.match(teammatesPaneSource, /SKILL\.md/);
+  assert.match(teammatesPaneSource, /className="min-w-0 flex-1"/);
+  assert.match(
+    teammatesPaneSource,
+    /className="truncate text-\[15px\] font-semibold text-foreground"/,
+  );
   assert.doesNotMatch(teammatesPaneSource, /WorkspaceSurfaceHeader/);
 
   assert.match(surfaceHeaderSource, /export function WorkspaceSurfaceHeader/);

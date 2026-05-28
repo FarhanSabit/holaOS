@@ -1,5 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useRef } from "react";
+import { Copy, Minus, Square, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { FirstWorkspacePane } from "@/components/onboarding/FirstWorkspacePane";
 import { useWorkspaceBrowser } from "@/components/panes/useWorkspaceBrowser";
 import { PublishScreen } from "@/components/publish/PublishScreen";
@@ -66,6 +67,8 @@ function NewAppShellContent() {
   const totalTabs = browserState.tabs.length + internalTabs.length;
   const prevTotalTabsRef = useRef(totalTabs);
   const seededMainViewWorkspaceIdRef = useRef<string | null>(null);
+  const desktopPlatform = window.electronAPI?.platform ?? null;
+  const isWindowsTitleBar = desktopPlatform === "win32";
 
   // Seed focusMode from the workspace's stored main-view preference whenever
   // the user switches to a workspace we haven't seeded yet this session.
@@ -125,7 +128,7 @@ function NewAppShellContent() {
   const showMiddle = layout === "split";
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden text-foreground antialiased">
+    <div className="relative flex h-screen w-screen overflow-hidden text-foreground antialiased">
       <Sidebar />
       {onboardingModeActive ? (
         <div className="flex min-w-0 flex-1 flex-col bg-background">
@@ -150,6 +153,7 @@ function NewAppShellContent() {
       <SearchDialog />
       <Overlays />
       <NotificationStack />
+      {isWindowsTitleBar ? <WindowsTitlebarControls /> : null}
       {selectedWorkspaceId ? (
         <PublishScreen
           open={publishOpen}
@@ -167,6 +171,84 @@ function NewAppShellContent() {
           onClose={() => setCreateWorkspaceOpen(false)}
         />
       ) : null}
+    </div>
+  );
+}
+
+function WindowsTitlebarControls() {
+  const [windowState, setWindowState] = useState<DesktopWindowStatePayload>({
+    isFullScreen: false,
+    isMaximized: false,
+    isMinimized: false,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    void window.electronAPI.ui.getWindowState().then((nextState) => {
+      if (mounted) {
+        setWindowState(nextState);
+      }
+    });
+
+    const unsubscribe = window.electronAPI.ui.onWindowStateChange(
+      (nextState) => {
+        if (mounted) {
+          setWindowState(nextState);
+        }
+      },
+    );
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const windowControlButtonClassName =
+    "window-no-drag flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-foreground/55 transition-colors duration-150 hover:bg-foreground/[0.04] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+
+  return (
+    <div className="window-drag absolute top-0 right-0 z-40 flex h-10 items-center pr-2 pl-6">
+      <div className="window-no-drag flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-label="Minimize window"
+          className={windowControlButtonClassName}
+          onClick={() => {
+            void window.electronAPI.ui.minimizeWindow();
+          }}
+        >
+          <Minus className="size-3.5" strokeWidth={2.1} />
+        </button>
+        <button
+          type="button"
+          aria-label={
+            windowState.isMaximized || windowState.isFullScreen
+              ? "Restore window"
+              : "Maximize window"
+          }
+          className={windowControlButtonClassName}
+          onClick={() => {
+            void window.electronAPI.ui.toggleWindowSize();
+          }}
+        >
+          {windowState.isMaximized || windowState.isFullScreen ? (
+            <Copy className="size-3.5" strokeWidth={1.9} />
+          ) : (
+            <Square className="size-3.5" strokeWidth={1.9} />
+          )}
+        </button>
+        <button
+          type="button"
+          aria-label="Close window"
+          className={`${windowControlButtonClassName} hover:bg-destructive/12 hover:text-destructive`}
+          onClick={() => {
+            void window.electronAPI.ui.closeWindow();
+          }}
+        >
+          <X className="size-3.5" strokeWidth={2.1} />
+        </button>
+      </div>
     </div>
   );
 }

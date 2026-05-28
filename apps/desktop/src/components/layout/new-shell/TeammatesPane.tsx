@@ -36,6 +36,8 @@ import { cn } from "@/lib/utils";
 import { useOpenIssueDetailTab } from "./useOpenIssueDetailTab";
 
 const NEW_TEAMMATE_ID = "__new_teammate__";
+const TEAMMATE_TABLE_GRID_COLUMNS =
+  "grid-cols-[minmax(240px,2.4fr)_132px_132px_104px_96px]";
 
 type DetailTab = "activity" | "issues" | "instructions" | "skills";
 
@@ -847,7 +849,12 @@ export function TeammatesPane({ workspaceId }: { workspaceId: string }) {
                     </div>
                   ) : null}
 
-                  <div className="grid grid-cols-[minmax(0,1.6fr)_160px_170px_140px_120px] gap-4 border-b border-border px-5 py-3 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/38">
+                  <div
+                    className={cn(
+                      "grid gap-4 border-b border-border px-5 py-3 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/38",
+                      TEAMMATE_TABLE_GRID_COLUMNS,
+                    )}
+                  >
                     <div>Agent</div>
                     <div>Status</div>
                     <div>Workload</div>
@@ -871,7 +878,10 @@ export function TeammatesPane({ workspaceId }: { workspaceId: string }) {
                           <button
                             key={teammate.teammate_id}
                             type="button"
-                            className="grid w-full grid-cols-[minmax(0,1.6fr)_160px_170px_140px_120px] gap-4 px-5 py-4 text-left transition-colors hover:bg-background/45"
+                            className={cn(
+                              "grid w-full gap-4 px-5 py-4 text-left transition-colors hover:bg-background/45",
+                              TEAMMATE_TABLE_GRID_COLUMNS,
+                            )}
                             onClick={() => handleSelectTeammate(teammate.teammate_id)}
                           >
                             <div className="min-w-0">
@@ -883,11 +893,11 @@ export function TeammatesPane({ workspaceId }: { workspaceId: string }) {
                                     <UserRound className="size-4 text-foreground/45" />
                                   )}
                                 </div>
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-medium text-foreground">
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-[15px] font-semibold text-foreground">
                                     {teammate.name}
                                   </div>
-                                  <div className="mt-1 truncate text-sm text-foreground/48">
+                                  <div className="mt-1 truncate text-[13px] text-foreground/48">
                                     {teammateSummary(teammate)}
                                   </div>
                                 </div>

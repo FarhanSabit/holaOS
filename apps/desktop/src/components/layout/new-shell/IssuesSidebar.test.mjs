@@ -36,6 +36,17 @@ test("new shell issues sidebar opens issue detail tabs and keeps inbox empty", a
 
   assert.match(sidebarSource, /section === "issues" \? <SidebarIssuesSection \/> : null/);
   assert.match(sidebarSource, /\{ key: "issues", label: "Agent Team", icon: <Bot \/> \}/);
+  assert.match(sidebarSource, /const MAC_WORKSPACE_POPOVER_LEFT_INSET = 72;/);
+  assert.match(sidebarSource, /const isMacDesktop = window\.electronAPI\?\.platform === "darwin";/);
+  assert.match(
+    sidebarSource,
+    /const workspacePopoverAlignOffset = isMacDesktop\s*\?\s*-MAC_WORKSPACE_POPOVER_LEFT_INSET\s*:\s*0;/,
+  );
+  assert.match(
+    sidebarSource,
+    /className=\{cn\(\s*"window-drag flex h-10 shrink-0 items-center pr-2",\s*isMacDesktop \? "pl-20" : "pl-2",\s*\)\}/,
+  );
+  assert.match(sidebarSource, /alignOffset=\{workspacePopoverAlignOffset\}/);
   assert.match(sidebarSource, /function SidebarIssuesSection\(\) \{/);
   assert.match(sidebarSource, />\s*New issue\s*</);
   assert.match(sidebarSource, />\s*Dashboard\s*</);
