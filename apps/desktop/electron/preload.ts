@@ -1817,6 +1817,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       canCloseLeft: boolean;
       canCloseRight: boolean;
       canCloseOthers: boolean;
+      canCloseAll?: boolean;
       hasDeleteFile: boolean;
     }) =>
       ipcRenderer.invoke("tabs:showContextMenu", opts) as Promise<
@@ -1824,6 +1825,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
         | "closeOthers"
         | "closeToLeft"
         | "closeToRight"
+        | "closeAll"
         | "deleteFile"
         | null
       >,
