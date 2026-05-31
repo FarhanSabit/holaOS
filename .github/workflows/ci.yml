@@ -559,6 +559,20 @@ jobs:
             apps/desktop/out/release/*-mac.yml
           if-no-files-found: error
 
+  release-macos-intel-desktop:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: ensure-release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-macos-intel-desktop.yml
+    with:
+      ref: ${{ needs.ensure-release.outputs.release_ref }}
+      release_tag: ${{ needs.ensure-release.outputs.release_tag }}
+      prerelease: ${{ inputs.prerelease }}
+      release_channel: ${{ needs.ensure-release.outputs.release_channel }}
+      artifact_only: true
+    secrets: inherit
+
   release-windows-desktop:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: ensure-release
@@ -899,12 +913,14 @@ jobs:
         needs.ensure-release.result == 'success' &&
         needs.release-linux-runtime.result == 'success' &&
         needs.release-macos-desktop.result == 'success' &&
+        needs.release-macos-intel-desktop.result == 'success' &&
         needs.release-windows-desktop.result == 'success'
       }}
     needs:
       - ensure-release
       - release-linux-runtime
       - release-macos-desktop
+      - release-macos-intel-desktop
       - release-windows-desktop
     permissions:
       actions: read
@@ -931,6 +947,12 @@ jobs:
         with:
           name: holaboss-desktop-macos-${{ inputs.release_tag }}
           path: release-assets/macos-desktop
+
+      - name: Download Intel macOS desktop release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: holaboss-desktop-macos-intel-${{ inputs.release_tag }}
+          path: release-assets/macos-intel-desktop
 
       - name: Download Windows desktop release artifacts
         uses: actions/download-artifact@v8
@@ -999,12 +1021,19 @@ jobs:
             exit 1
           fi
 
+          mac_intel_dmg_asset="release-assets/macos-intel-desktop/holaOS-macos-x64.dmg"
+          if [ ! -f "${mac_intel_dmg_asset}" ]; then
+            echo "missing Intel macOS DMG release asset" >&2
+            exit 1
+          fi
+
           upload_paths=(
             "${linux_runtime_asset}"
             "${linux_runtime_checksum_asset}"
             "${linux_runtime_manifest_asset}"
             "${mac_dmg_asset}"
             "${mac_zip_asset}"
+            "${mac_intel_dmg_asset}"
           )
 
           while IFS= read -r manifest_path; do
